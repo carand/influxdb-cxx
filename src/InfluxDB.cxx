@@ -14,20 +14,23 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <thread>
-#include <future>
 #include <functional>
 #endif
 
 namespace influxdb
 {
 
-InfluxDB::InfluxDB(std::unique_ptr<Transport> transport) :
+InfluxDB::InfluxDB(std::unique_ptr<Transport> transport,
+                   std::function<void()> onTransmitionSucceded,
+                   std::function<void()> onTransmitionFailed) :
   mBuffer{},
   mBuffering{false},
   mBufferSize{0},
   mTransport(std::move(transport)),
   mGlobalTags{},
-  mFlushingThread{nullptr}
+  mFlushingThread{nullptr},
+  mOnTransmissionFailed{std::move(onTransmitionFailed)},
+  mOnTransmissionSucceeded{std::move(onTransmitionSucceded)}
 {
 
 }
@@ -59,12 +62,20 @@ void InfluxDB::flushBuffer()
     return;
   }
   std::scoped_lock lock(mBufferMutex);
+  if (mBuffer.empty())
+  {
+      return;
+  }
+
   std::string stringBuffer{};
-  for (const auto &i : mBuffer) {
+  for (const auto &i : mBuffer)
+  {
     stringBuffer+= i + "\n";
   }
-  mBuffer.clear();
-  transmit(std::move(stringBuffer));
+  if (transmit(std::move(stringBuffer)))
+  {
+      mBuffer.clear();
+  }
 }
 
 void InfluxDB::addGlobalTag(std::string_view key, std::string_view value)
@@ -84,9 +95,20 @@ InfluxDB::~InfluxDB()
   }
 }
 
-void InfluxDB::transmit(std::string&& point)
+bool InfluxDB::transmit(std::string&& point)
 {
-  mTransport->send(std::move(point));
+  bool result = true;
+  try
+  {
+    mTransport->send(std::move(point));
+    mOnTransmissionSucceeded();
+  }
+  catch (const std::runtime_error& error)
+  {
+    mOnTransmissionFailed();
+    result = false;
+  }
+  return result;
 }
 
 void InfluxDB::addLineProtocolToBuffer(std::string&& lineProtocol)

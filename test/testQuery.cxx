@@ -11,7 +11,7 @@ namespace test {
 
 BOOST_AUTO_TEST_CASE(query1)
 {
-  auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test");
+  auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test", []{}, []{});
   auto points = influxdb->query("SELECT * from test WHERE host = 'localhost' LIMIT 3");
   BOOST_CHECK_EQUAL(points.size(), 3);
   BOOST_CHECK_EQUAL(points[0].getName(), "test");

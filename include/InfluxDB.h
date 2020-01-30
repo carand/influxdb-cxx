@@ -12,6 +12,7 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <functional>
 
 #include "Transport.h"
 #include "Point.h"
@@ -29,7 +30,9 @@ class InfluxDB
     InfluxDB(const InfluxDB&) = delete;
 
     /// Constructor required valid transport
-    InfluxDB(std::unique_ptr<Transport> transport);
+    InfluxDB(std::unique_ptr<Transport> transport,
+        std::function<void()> onTransmissionSucceeded,
+        std::function<void()> onTransmissionFailed);
 
     /// Flushes buffer
     ~InfluxDB();
@@ -73,7 +76,7 @@ private:
     std::unique_ptr<Transport> mTransport;
 
     /// Transmits string over transport
-    void transmit(std::string&& point);
+    bool transmit(std::string&& point);
 
     /// List of global tags
     std::string mGlobalTags;
@@ -90,6 +93,8 @@ private:
     /// Flushing thread stop flag
     bool mStopFlushingThread;
 
+    std::function<void()> mOnTransmissionFailed;
+    std::function<void()> mOnTransmissionSucceeded;
 };
 
 } // namespace influxdb

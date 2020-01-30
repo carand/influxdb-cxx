@@ -22,10 +22,9 @@ class InfluxDBFactory
    InfluxDBFactory(const InfluxDBFactory&) = delete;
 
    /// InfluxDB factory
-   /// Provides InfluxDB instance with given transport
-   /// \param url 	URL defining transport details
-   /// \throw InfluxDBException 	if unrecognised backend or missing protocol
-   static std::unique_ptr<InfluxDB> Get(std::string url) noexcept(false);
+   static std::unique_ptr<InfluxDB> Get(std::string url,
+       std::function<void()>&& onTransmissionSucceeded,
+       std::function<void()>&& onTransmissionFailed) noexcept(false);
   
  private:
    ///\return  backend based on provided URL

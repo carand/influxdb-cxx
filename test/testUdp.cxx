@@ -9,7 +9,7 @@ namespace test {
 
 BOOST_AUTO_TEST_CASE(test)
 {
-  auto influxdb = influxdb::InfluxDBFactory::Get("udp://localhost:8084");
+  auto influxdb = influxdb::InfluxDBFactory::Get("udp://localhost:8084", []{}, []{});
   influxdb->write(Point{"test"}
     .addField("value", 10)
     .addField("value", 20)
@@ -20,7 +20,7 @@ BOOST_AUTO_TEST_CASE(test)
 
 BOOST_AUTO_TEST_CASE(test2)
 {
-  auto influxdb = influxdb::InfluxDBFactory::Get("udp://localhost:8084");
+  auto influxdb = influxdb::InfluxDBFactory::Get("udp://localhost:8084", []{}, []{});
   influxdb->batchOf(2);
   influxdb->write(Point{"test"}.addField("value", 10));
   influxdb->write(Point{"test"}.addField("value", 10));
