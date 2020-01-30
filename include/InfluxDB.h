@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <mutex>
+#include <thread>
 
 #include "Transport.h"
 #include "Point.h"
@@ -44,12 +46,18 @@ class InfluxDB
 
     /// Enables metric buffering
     /// \param size
-    void batchOf(const std::size_t size = 32);
+    void batchOf(const std::size_t size = 32,
+                 const std::chrono::milliseconds& timeout = std::chrono::milliseconds(500));
 
     /// Adds a global tag
     /// \param name
     /// \param value
     void addGlobalTag(std::string_view name, std::string_view value);
+
+
+private:
+    void addLineProtocolToBuffer(std::string&& lineProtocol);
+    static void doPeriodicFlushBuffer(InfluxDB* influxDb);
 
   private:
     /// Buffer for points
@@ -69,6 +77,19 @@ class InfluxDB
 
     /// List of global tags
     std::string mGlobalTags;
+
+    /// Mutex for accessing buffer
+    std::mutex mBufferMutex;
+
+    /// Flushing timeout
+    std::chrono::milliseconds mFlushingTimeout;
+
+    /// Flushing thread
+    std::unique_ptr<std::thread> mFlushingThread;
+
+    /// Flushing thread stop flag
+    bool mStopFlushingThread;
+
 };
 
 } // namespace influxdb

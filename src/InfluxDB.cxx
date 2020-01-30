@@ -13,30 +13,52 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <thread>
+#include <future>
+#include <functional>
 #endif
 
 namespace influxdb
 {
 
 InfluxDB::InfluxDB(std::unique_ptr<Transport> transport) :
-  mTransport(std::move(transport))
+  mBuffer{},
+  mBuffering{false},
+  mBufferSize{0},
+  mTransport(std::move(transport)),
+  mGlobalTags{},
+  mFlushingThread{nullptr}
 {
-  mBuffer = {};
-  mBuffering = false;
-  mBufferSize = 0;
-  mGlobalTags = {};
+
 }
 
-void InfluxDB::batchOf(const std::size_t size)
+void InfluxDB::doPeriodicFlushBuffer(InfluxDB* influxDb)
+{
+    while (!influxDb->mStopFlushingThread)
+    {
+        std::this_thread::sleep_for(influxDb->mFlushingTimeout);
+        influxDb->flushBuffer();
+    }
+}
+
+void InfluxDB::batchOf(const std::size_t size, const std::chrono::milliseconds& timeout)
 {
   mBufferSize = size;
   mBuffering = true;
+  mFlushingTimeout = timeout;
+  if (!mFlushingThread)
+  {
+      mStopFlushingThread = false;
+      mFlushingThread = std::make_unique<std::thread>(&InfluxDB::doPeriodicFlushBuffer, this);
+  }
 }
 
-void InfluxDB::flushBuffer() {
-  if (!mBuffering || mBuffer.empty()) {
+void InfluxDB::flushBuffer()
+{
+  if (!mBuffering) {
     return;
   }
+  std::scoped_lock lock(mBufferMutex);
   std::string stringBuffer{};
   for (const auto &i : mBuffer) {
     stringBuffer+= i + "\n";
@@ -56,6 +78,8 @@ void InfluxDB::addGlobalTag(std::string_view key, std::string_view value)
 InfluxDB::~InfluxDB()
 {
   if (mBuffering) {
+    mStopFlushingThread = true;
+    mFlushingThread->join();
     flushBuffer();
   }
 }
@@ -65,15 +89,22 @@ void InfluxDB::transmit(std::string&& point)
   mTransport->send(std::move(point));
 }
 
-void InfluxDB::write(Point&& metric)
+void InfluxDB::addLineProtocolToBuffer(std::string&& lineProtocol)
+{
+    std::scoped_lock lock{ mBufferMutex };
+    mBuffer.emplace_back(lineProtocol);
+}
+
+void InfluxDB::write(Point&& point)
 {
   if (mBuffering) {
-    mBuffer.emplace_back(metric.toLineProtocol());
+    addLineProtocolToBuffer(point.toLineProtocol());
+
     if (mBuffer.size() >= mBufferSize) {
       flushBuffer();
     }
   } else {
-    transmit(metric.toLineProtocol());
+    transmit(point.toLineProtocol());
   }
 }
 
