@@ -28,7 +28,9 @@ InfluxDB::InfluxDB(std::unique_ptr<Transport> transport) :
   mGlobalTags{},
   mFlushingThread{nullptr},
   mOnTransmissionFailed{[]{}},
-  mOnTransmissionSucceeded{[]{}}
+  mOnTransmissionSucceeded{[]{}},
+  mLastNotificationWasTransmissionSuccess{false},
+  mLastNotificationWasTransmissionFail{false}
 {
 }
 
@@ -120,11 +122,21 @@ bool InfluxDB::transmit(std::string&& point)
   try
   {
     mTransport->send(std::move(point));
-    mOnTransmissionSucceeded();
+    if (!mLastNotificationWasTransmissionSuccess)
+    {
+      mLastNotificationWasTransmissionFail = false;
+      mLastNotificationWasTransmissionSuccess = true;
+      mOnTransmissionSucceeded();
+    }
   }
   catch (const std::runtime_error& error)
   {
-    mOnTransmissionFailed();
+    if (!mLastNotificationWasTransmissionFail)
+    {
+        mLastNotificationWasTransmissionFail = true;
+        mLastNotificationWasTransmissionSuccess = false;
+        mOnTransmissionFailed();
+    }
     result = false;
   }
   return result;
@@ -193,10 +205,18 @@ std::vector<Point> InfluxDB::query(const std::string&  query)
 void InfluxDB::onTransmissionFailed(std::function<void()> callback)
 {
     mOnTransmissionFailed=std::move(callback);
+    if (mLastNotificationWasTransmissionFail)
+    {
+        mOnTransmissionFailed();
+    }
 }
 void InfluxDB::onTransmissionSucceeded(std::function<void()> callback)
 {
     mOnTransmissionSucceeded=std::move(callback);
+    if (mLastNotificationWasTransmissionSuccess)
+    {
+        mOnTransmissionSucceeded();
+    }
 }
 
 

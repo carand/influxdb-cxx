@@ -111,6 +111,11 @@ class InfluxDB
     /// Callback called when transmission success
     std::function<void()> mOnTransmissionSucceeded;
 
+    /// flag indicating that last notification was transmission success
+    bool mLastNotificationWasTransmissionSuccess;
+
+    /// flag indicating that last notification was transmission fail
+    bool mLastNotificationWasTransmissionFail;
 };
 
 } // namespace influxdb

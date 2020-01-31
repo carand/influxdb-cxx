@@ -100,6 +100,7 @@ auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086/?db=test")
 influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
 influxdb->onTransmissionFailed([&]{failedTransmissions++;});
 ```
+If transmission succedeed or failed previous to callbacks registration, the appropriate callback will be invoked at registration time 
 
 ### Query
 

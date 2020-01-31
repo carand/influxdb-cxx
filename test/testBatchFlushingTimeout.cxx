@@ -29,9 +29,8 @@ BOOST_AUTO_TEST_CASE(With_InfluxDb_down_after_timeout_on_failed_callback_is_call
     BOOST_CHECK_EQUAL(1, failedTransmissions);
     BOOST_CHECK_EQUAL(0, succedeedTransmissions);
     std::this_thread::sleep_for(std::chrono::milliseconds(1200));
-    BOOST_CHECK_EQUAL(2, failedTransmissions);
+    BOOST_CHECK_EQUAL(1, failedTransmissions);
     BOOST_CHECK_EQUAL(0, succedeedTransmissions);
-
 }
 
 BOOST_AUTO_TEST_CASE(With_InfluxDb_down_after_timeout_on_succeded_callback_is_called)
@@ -55,7 +54,7 @@ BOOST_AUTO_TEST_CASE(With_InfluxDb_down_after_timeout_on_succeded_callback_is_ca
     influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
     std::this_thread::sleep_for(std::chrono::milliseconds(1200));
     BOOST_CHECK_EQUAL(0, failedTransmissions);
-    BOOST_CHECK_EQUAL(2, succedeedTransmissions);
+    BOOST_CHECK_EQUAL(1, succedeedTransmissions);
 }
 
 BOOST_AUTO_TEST_CASE(Dynamic_deactivate_flushing_timeout)
@@ -66,6 +65,8 @@ BOOST_AUTO_TEST_CASE(Dynamic_deactivate_flushing_timeout)
     auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test");
     influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
     influxdb->onTransmissionFailed([&]{failedTransmissions++;});
+    auto points = influxdb->query("SELECT * from test");
+    int nbOfPointsAtBegginning = points.size();
 
     influxdb->batchOf(100, std::chrono::milliseconds(1000));
     influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
@@ -75,6 +76,9 @@ BOOST_AUTO_TEST_CASE(Dynamic_deactivate_flushing_timeout)
     std::this_thread::sleep_for(std::chrono::milliseconds(1200));
     BOOST_CHECK_EQUAL(0, failedTransmissions);
     BOOST_CHECK_EQUAL(1, succedeedTransmissions);
+    points = influxdb->query("SELECT * from test");
+    int nbOfPointsAfterTimeout = points.size();
+    BOOST_CHECK_EQUAL(nbOfPointsAtBegginning + 1, nbOfPointsAfterTimeout);
 
     // deactivate flushing setting timeout to 0
     influxdb->batchOf(100, std::chrono::milliseconds(0));
@@ -83,6 +87,42 @@ BOOST_AUTO_TEST_CASE(Dynamic_deactivate_flushing_timeout)
     influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
     BOOST_CHECK_EQUAL(0, failedTransmissions);
     BOOST_CHECK_EQUAL(1, succedeedTransmissions);
+    points = influxdb->query("SELECT * from test");
+    int nbOfPointsDeactivatedAutoFlushing = points.size();
+    BOOST_CHECK_EQUAL(nbOfPointsAtBegginning + 1, nbOfPointsDeactivatedAutoFlushing);
+}
 
+BOOST_AUTO_TEST_CASE(When_transmission_was_ok_previous_callback_registering_it_is_notified_at_registering_time)
+{
+    std::atomic<int>succedeedTransmissions{0};
+    std::atomic<int>failedTransmissions{0};
+
+    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test");
+
+    influxdb->batchOf(100, std::chrono::milliseconds(1000));
+    influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+
+    influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
+    influxdb->onTransmissionFailed([&]{failedTransmissions++;});
+    BOOST_CHECK_EQUAL(0, failedTransmissions);
+    BOOST_CHECK_EQUAL(1, succedeedTransmissions);
+}
+
+BOOST_AUTO_TEST_CASE(When_transmission_failed_previous_callback_registering_it_is_notified_at_registering_time)
+{
+    std::atomic<int>succedeedTransmissions{0};
+    std::atomic<int>failedTransmissions{0};
+
+    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8081?db=test");
+
+    influxdb->batchOf(100, std::chrono::milliseconds(1000));
+    influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+
+    influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
+    influxdb->onTransmissionFailed([&]{failedTransmissions++;});
+    BOOST_CHECK_EQUAL(1, failedTransmissions);
+    BOOST_CHECK_EQUAL(0, succedeedTransmissions);
 }
 }}
