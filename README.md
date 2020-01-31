@@ -63,6 +63,44 @@ for (;;) {
 }
 ```
 
+### Batch write with disconnectable autoflushing timeout
+
+```cpp
+// Provide complete URI
+auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086/?db=test");
+
+// Write batches of 100 points with a second of time out
+influxdb->batchOf(100, std::chrono::milliseconds(500));
+
+// the point will be automatically inserted in InfluxDB due to timeout
+influxdb->write(Point{"test"}.addField("value", 0));
+std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+// to disconnect the automatic flushing due to time out set again the batch with timeout = 0 ms
+influxdb->batchOf(2, std::chrono::milliseconds(0));
+
+// this point will be inserted only when batch size is reached
+influxdb->write(Point{"test"}.addField("value", 10));
+std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+// with the following write, batch size is reached and injection in InfluxDb is performed
+influxdb->write(Point{"test"}.addField("value", 20));  
+```
+
+### Registering transmission callbacks 
+
+```cpp
+std::atomic<int>succedeedTransmissions{0};
+std::atomic<int>failedTransmissions{0};
+
+auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086/?db=test");
+
+// to detect when transmission of points fails or success register the callbacks
+// called when success or failing happens
+influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
+influxdb->onTransmissionFailed([&]{failedTransmissions++;});
+```
+
 ### Query
 
 ```cpp

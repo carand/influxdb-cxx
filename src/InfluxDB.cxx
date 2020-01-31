@@ -20,17 +20,15 @@
 namespace influxdb
 {
 
-InfluxDB::InfluxDB(std::unique_ptr<Transport> transport,
-                   std::function<void()> onTransmitionSucceded,
-                   std::function<void()> onTransmitionFailed) :
+InfluxDB::InfluxDB(std::unique_ptr<Transport> transport) :
   mBuffer{},
   mBuffering{false},
   mBufferSize{0},
   mTransport(std::move(transport)),
   mGlobalTags{},
   mFlushingThread{nullptr},
-  mOnTransmissionFailed{std::move(onTransmitionFailed)},
-  mOnTransmissionSucceeded{std::move(onTransmitionSucceded)}
+  mOnTransmissionFailed{[]{}},
+  mOnTransmissionSucceeded{[]{}}
 {
 }
 
@@ -192,6 +190,16 @@ std::vector<Point> InfluxDB::query(const std::string&  query)
   }
   return points;
 }
+void InfluxDB::onTransmissionFailed(std::function<void()> callback)
+{
+    mOnTransmissionFailed=std::move(callback);
+}
+void InfluxDB::onTransmissionSucceeded(std::function<void()> callback)
+{
+    mOnTransmissionSucceeded=std::move(callback);
+}
+
+
 #else
 std::vector<Point> InfluxDB::query(const std::string& /*query*/)
 {

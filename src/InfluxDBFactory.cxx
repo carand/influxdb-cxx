@@ -70,11 +70,9 @@ std::unique_ptr<Transport> InfluxDBFactory::GetTransport(std::string url) {
   return iterator->second(parsedUrl);
 }
 
-std::unique_ptr<InfluxDB> InfluxDBFactory::Get(std::string url,
-    std::function<void()>&& onTransmissionSucceeded,
-    std::function<void()>&& onTransmissionFailed)
+std::unique_ptr<InfluxDB> InfluxDBFactory::Get(std::string url)
 {
-  return std::make_unique<InfluxDB>(InfluxDBFactory::GetTransport(url), onTransmissionSucceeded, onTransmissionFailed);
+  return std::make_unique<InfluxDB>(InfluxDBFactory::GetTransport(url));
 }
 
 } // namespace influxdb

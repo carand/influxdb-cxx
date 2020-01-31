@@ -22,9 +22,7 @@ class InfluxDBFactory
    InfluxDBFactory(const InfluxDBFactory&) = delete;
 
    /// InfluxDB factory
-   static std::unique_ptr<InfluxDB> Get(std::string url,
-       std::function<void()>&& onTransmissionSucceeded,
-       std::function<void()>&& onTransmissionFailed) noexcept(false);
+   static std::unique_ptr<InfluxDB> Get(std::string url) noexcept(false);
   
  private:
    ///\return  backend based on provided URL

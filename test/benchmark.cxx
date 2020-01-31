@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
   boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
   boost::program_options::notify(vm);
 
-  auto db = InfluxDBFactory::Get(vm["url"].as<std::string>(), []{}, []{});
+  auto db = InfluxDBFactory::Get(vm["url"].as<std::string>());
 
   if (vm.count("count")) {
     count = std::floor(vm["count"].as<int>()/2) + 1;

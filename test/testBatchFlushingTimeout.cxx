@@ -16,10 +16,10 @@ BOOST_AUTO_TEST_CASE(With_InfluxDb_down_after_timeout_on_failed_callback_is_call
     std::atomic<int>succedeedTransmissions{0};
     std::atomic<int>failedTransmissions{0};
 
+    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8081?db=test");
+    influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
+    influxdb->onTransmissionFailed([&]{failedTransmissions++;});
 
-    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8081?db=test",
-                                                [&]{succedeedTransmissions++;},
-                                                [&]{failedTransmissions++;});
     influxdb->batchOf(100, std::chrono::milliseconds(1000));
 
     influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
@@ -39,10 +39,9 @@ BOOST_AUTO_TEST_CASE(With_InfluxDb_down_after_timeout_on_succeded_callback_is_ca
     std::atomic<int>succedeedTransmissions{0};
     std::atomic<int>failedTransmissions{0};
 
-
-    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test",
-        [&]{succedeedTransmissions++;},
-        [&]{failedTransmissions++;});
+    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test");
+    influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
+    influxdb->onTransmissionFailed([&]{failedTransmissions++;});
 
     influxdb->batchOf(100, std::chrono::milliseconds(1000));
     influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));
@@ -64,10 +63,9 @@ BOOST_AUTO_TEST_CASE(Dynamic_deactivate_flushing_timeout)
     std::atomic<int>succedeedTransmissions{0};
     std::atomic<int>failedTransmissions{0};
 
-
-    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test",
-    [&]{succedeedTransmissions++;},
-    [&]{failedTransmissions++;});
+    auto influxdb = influxdb::InfluxDBFactory::Get("http://localhost:8086?db=test");
+    influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
+    influxdb->onTransmissionFailed([&]{failedTransmissions++;});
 
     influxdb->batchOf(100, std::chrono::milliseconds(1000));
     influxdb->write(Point{ "test" }.addField("value", 10).addTag("host", "localhost"));

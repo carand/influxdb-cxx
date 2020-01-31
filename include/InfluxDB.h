@@ -31,9 +31,7 @@ class InfluxDB
     InfluxDB(const InfluxDB&) = delete;
 
     /// Constructor required valid transport
-    InfluxDB(std::unique_ptr<Transport> transport,
-        std::function<void()> onTransmissionSucceeded,
-        std::function<void()> onTransmissionFailed);
+    InfluxDB(std::unique_ptr<Transport> transport);
 
     /// Flushes buffer
     ~InfluxDB();
@@ -60,6 +58,14 @@ class InfluxDB
     /// \param name
     /// \param value
     void addGlobalTag(std::string_view name, std::string_view value);
+
+    /// Set the callback called when a transmission fails
+    /// \param name
+    void onTransmissionFailed(std::function<void()> callback);
+
+    /// Set the callback called when a transmission succeedes
+    /// \param callback
+    void onTransmissionSucceeded(std::function<void()> callback);
 
 
   private:
