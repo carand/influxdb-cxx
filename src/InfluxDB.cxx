@@ -32,16 +32,24 @@ InfluxDB::InfluxDB(std::unique_ptr<Transport> transport,
   mOnTransmissionFailed{std::move(onTransmitionFailed)},
   mOnTransmissionSucceeded{std::move(onTransmitionSucceded)}
 {
+}
 
+InfluxDB::~InfluxDB()
+{
+    if (!mBuffering)
+        return;
+
+    joinFlushingThread();
+    flushBuffer();
 }
 
 void InfluxDB::doPeriodicFlushBuffer(InfluxDB* influxDb)
 {
-    while (!influxDb->mStopFlushingThread)
-    {
-        std::this_thread::sleep_for(influxDb->mFlushingTimeout);
-        influxDb->flushBuffer();
-    }
+  while (influxDb->mFlushingThreadStarted)
+  {
+    std::this_thread::sleep_for(influxDb->mFlushingTimeout);
+    influxDb->flushBuffer();
+  }
 }
 
 void InfluxDB::batchOf(const std::size_t size, const std::chrono::milliseconds& timeout)
@@ -49,11 +57,33 @@ void InfluxDB::batchOf(const std::size_t size, const std::chrono::milliseconds& 
   mBufferSize = size;
   mBuffering = true;
   mFlushingTimeout = timeout;
-  if (!mFlushingThread)
+  if (timeout.count()>0)
   {
-      mStopFlushingThread = false;
-      mFlushingThread = std::make_unique<std::thread>(&InfluxDB::doPeriodicFlushBuffer, this);
+      startBufferFlushingThread();
   }
+  else
+  {
+      joinFlushingThread();
+  }
+}
+
+void InfluxDB::joinFlushingThread()
+{
+    if (!mFlushingThread)
+        return;
+
+    mFlushingThreadStarted = false;
+    mFlushingThread->join();
+    mFlushingThread.reset();
+}
+
+void InfluxDB::startBufferFlushingThread()
+{
+    if (mFlushingThread)
+        return;
+
+    mFlushingThreadStarted = true;
+    mFlushingThread = std::make_unique<std::thread>(&InfluxDB::doPeriodicFlushBuffer, this);
 }
 
 void InfluxDB::flushBuffer()
@@ -84,15 +114,6 @@ void InfluxDB::addGlobalTag(std::string_view key, std::string_view value)
   mGlobalTags += key;
   mGlobalTags += "=";
   mGlobalTags += value;
-}
-
-InfluxDB::~InfluxDB()
-{
-  if (mBuffering) {
-    mStopFlushingThread = true;
-    mFlushingThread->join();
-    flushBuffer();
-  }
 }
 
 bool InfluxDB::transmit(std::string&& point)

@@ -13,6 +13,7 @@
 #include <mutex>
 #include <thread>
 #include <functional>
+#include <atomic>
 
 #include "Transport.h"
 #include "Point.h"
@@ -47,10 +48,13 @@ class InfluxDB
     /// Flushes metric buffer (this can also happens when buffer is full)
     void flushBuffer();
 
-    /// Enables metric buffering
+    /// Enables metric buffering. If timeout is defined, buffer autoflushing is activated. It leads to having injection
+    /// both for reaching batch size or timeout.
+    /// Batching size and timeout can be changed dynamically but it can not be deactivated (by now)
     /// \param size
+    /// \param timeout
     void batchOf(const std::size_t size = 32,
-                 const std::chrono::milliseconds& timeout = std::chrono::milliseconds(500));
+                 const std::chrono::milliseconds& timeout = std::chrono::milliseconds(0));
 
     /// Adds a global tag
     /// \param name
@@ -58,9 +62,11 @@ class InfluxDB
     void addGlobalTag(std::string_view name, std::string_view value);
 
 
-private:
+  private:
     void addLineProtocolToBuffer(std::string&& lineProtocol);
     static void doPeriodicFlushBuffer(InfluxDB* influxDb);
+    void startBufferFlushingThread();
+    void joinFlushingThread();
 
   private:
     /// Buffer for points
@@ -91,10 +97,14 @@ private:
     std::unique_ptr<std::thread> mFlushingThread;
 
     /// Flushing thread stop flag
-    bool mStopFlushingThread;
+    std::atomic<bool> mFlushingThreadStarted;
 
+    /// Callback called when transmission fails
     std::function<void()> mOnTransmissionFailed;
+
+    /// Callback called when transmission success
     std::function<void()> mOnTransmissionSucceeded;
+
 };
 
 } // namespace influxdb
