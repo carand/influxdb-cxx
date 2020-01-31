@@ -115,22 +115,19 @@ if (Boost_FOUND AND INFLUXCXX_TESTING)
   enable_testing()
 
   set(TEST_SRCS
-    test/testUdp.cxx
-    test/testPoint.cxx
-    test/testHttp.cxx
-    test/testQuery.cxx
-    test/testFactory.cxx
-  )
+          test/testUdp.cxx
+          test/testPoint.cxx
+          test/testHttp.cxx
+          test/testQuery.cxx
+          test/testFactory.cxx
+          test/testBatchFlushingTimeout.cxx)
 
   foreach (test ${TEST_SRCS})
     get_filename_component(test_name ${test} NAME)
     string(REGEX REPLACE ".cxx" "" test_name ${test_name})
 
     add_executable(${test_name} ${test})
-    target_link_libraries(${test_name}
-      PRIVATE
-        InfluxDB Boost::unit_test_framework
-    )
+    target_link_libraries(${test_name} PRIVATE InfluxDB Boost::unit_test_framework)
     add_test(NAME ${test_name} COMMAND ${test_name})
     set_tests_properties(${test_name} PROPERTIES TIMEOUT 60)
   endforeach()
