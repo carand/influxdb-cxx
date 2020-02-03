@@ -62,6 +62,7 @@ void InfluxDB::doPeriodicFlushBuffer(InfluxDB* influxDb)
 
     std::scoped_lock lock(influxDb->mBufferMutex);
     influxDb->flushBuffer();
+    msToWaitToFlush = influxDb->mFlushingTimeout;
   }
 }
 
