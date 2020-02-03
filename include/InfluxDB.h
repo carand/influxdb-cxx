@@ -59,16 +59,26 @@ class InfluxDB
     /// \param value
     void addGlobalTag(std::string_view name, std::string_view value);
 
-    /// Set the callback called when a transmission fails
+    /// Set the callback called when a connection error raises from transport
     /// \param name
-    void onTransmissionFailed(std::function<void()> callback);
+    void onConnectionError(std::function<void()> callback);
 
-    /// Set the callback called when a transmission succeedes
+    /// Set the callback called when a bad request is responsed to transport
+    /// \param callback
+    void onBadRequest(std::function<void()> callback);
+
+    /// Set the callback called when a transmission succeeded by transport
     /// \param callback
     void onTransmissionSucceeded(std::function<void()> callback);
 
 
   private:
+    enum LastConnectionNotification{
+        NothingNotified,
+        ConnectionSuccess,
+        ConnectionError
+    };
+
     void addLineProtocolToBuffer(std::string&& lineProtocol);
     static void doPeriodicFlushBuffer(InfluxDB* influxDb);
     void startBufferFlushingThread();
@@ -105,17 +115,19 @@ class InfluxDB
     /// Flushing thread stop flag
     std::atomic<bool> mFlushingThreadStarted;
 
-    /// Callback called when transmission fails
-    std::function<void()> mOnTransmissionFailed;
+    /// Callback called when bad request is reported from transport
+    std::function<void()> mOnBadRequest;
+
+    /// Callback called when connection error happens
+    std::function<void()> mOnConnectionError;
 
     /// Callback called when transmission success
     std::function<void()> mOnTransmissionSucceeded;
 
-    /// flag indicating that last notification was transmission success
-    bool mLastNotificationWasTransmissionSuccess;
+    /// flag indicating that last connection notification
+    LastConnectionNotification mLastConnectionNotification;
 
-    /// flag indicating that last notification was transmission fail
-    bool mLastNotificationWasTransmissionFail;
+    std::chrono::time_point<std::chrono::system_clock> mLastFlushTime;
 };
 
 } // namespace influxdb

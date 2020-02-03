@@ -114,11 +114,13 @@ void HTTP::send(std::string&& post)
   curl_easy_setopt(writeHandle, CURLOPT_POSTFIELDSIZE, (long) post.length());
   response = curl_easy_perform(writeHandle);
   curl_easy_getinfo(writeHandle, CURLINFO_RESPONSE_CODE, &responseCode);
-  if (response != CURLE_OK) {
-    throw InfluxDBException("HTTP::send", curl_easy_strerror(response));
+  if (response != CURLE_OK)
+  {
+    throw connection_error(curl_easy_strerror(response));
   }
-  if (responseCode < 200 || responseCode > 206) {
-    throw InfluxDBException("HTTP::send", "Response code: " + std::to_string(responseCode));
+  if (responseCode < 200 || responseCode > 206)
+  {
+    throw bad_request_error("Response code : " + std::to_string(responseCode));
   }
 }
 

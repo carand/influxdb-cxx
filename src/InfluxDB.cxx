@@ -17,6 +17,9 @@
 #include <functional>
 #endif
 
+using namespace std::chrono;
+using namespace std::chrono_literals;
+
 namespace influxdb
 {
 
@@ -27,10 +30,11 @@ InfluxDB::InfluxDB(std::unique_ptr<Transport> transport) :
   mTransport(std::move(transport)),
   mGlobalTags{},
   mFlushingThread{nullptr},
-  mOnTransmissionFailed{[]{}},
+  mOnBadRequest{[]{}},
+  mOnConnectionError{[]{}},
   mOnTransmissionSucceeded{[]{}},
-  mLastNotificationWasTransmissionSuccess{false},
-  mLastNotificationWasTransmissionFail{false}
+  mLastConnectionNotification{NothingNotified},
+  mLastFlushTime{ system_clock::now() }
 {
 }
 
@@ -45,9 +49,18 @@ InfluxDB::~InfluxDB()
 
 void InfluxDB::doPeriodicFlushBuffer(InfluxDB* influxDb)
 {
+  auto msToWaitToFlush = influxDb->mFlushingTimeout;
   while (influxDb->mFlushingThreadStarted)
   {
-    std::this_thread::sleep_for(influxDb->mFlushingTimeout);
+    std::this_thread::sleep_for(msToWaitToFlush);
+    msToWaitToFlush = influxDb->mFlushingTimeout - duration_cast<milliseconds>(system_clock::now() - influxDb->mLastFlushTime);
+
+    if (msToWaitToFlush > 0ms)
+    {
+        continue;
+    }
+
+    std::scoped_lock lock(influxDb->mBufferMutex);
     influxDb->flushBuffer();
   }
 }
@@ -57,7 +70,7 @@ void InfluxDB::batchOf(const std::size_t size, const std::chrono::milliseconds& 
   mBufferSize = size;
   mBuffering = true;
   mFlushingTimeout = timeout;
-  if (timeout.count()>0)
+  if (timeout > 0ms)
   {
       startBufferFlushingThread();
   }
@@ -88,10 +101,11 @@ void InfluxDB::startBufferFlushingThread()
 
 void InfluxDB::flushBuffer()
 {
-  if (!mBuffering) {
+  mLastFlushTime = system_clock::now();
+  if (!mBuffering)
+  {
     return;
   }
-  std::scoped_lock lock(mBufferMutex);
   if (mBuffer.empty())
   {
       return;
@@ -122,41 +136,47 @@ bool InfluxDB::transmit(std::string&& point)
   try
   {
     mTransport->send(std::move(point));
-    if (!mLastNotificationWasTransmissionSuccess)
+    if (mLastConnectionNotification != ConnectionSuccess)
     {
-      mLastNotificationWasTransmissionFail = false;
-      mLastNotificationWasTransmissionSuccess = true;
       mOnTransmissionSucceeded();
+      mLastConnectionNotification = ConnectionSuccess;
     }
   }
-  catch (const std::runtime_error& error)
+  catch (const bad_request_error& error)
   {
-    if (!mLastNotificationWasTransmissionFail)
+    mOnBadRequest();
+    if (mLastConnectionNotification != ConnectionSuccess)
     {
-        mLastNotificationWasTransmissionFail = true;
-        mLastNotificationWasTransmissionSuccess = false;
-        mOnTransmissionFailed();
+      mOnTransmissionSucceeded();
+      mLastConnectionNotification = ConnectionSuccess;
+    }
+  }
+  catch (const connection_error& error)
+  {
+    if (mLastConnectionNotification != ConnectionError)
+    {
+      mLastConnectionNotification = ConnectionError;
+      mOnConnectionError();
     }
     result = false;
   }
-  return result;
-}
 
-void InfluxDB::addLineProtocolToBuffer(std::string&& lineProtocol)
-{
-    std::scoped_lock lock{ mBufferMutex };
-    mBuffer.emplace_back(lineProtocol);
+  return result;
 }
 
 void InfluxDB::write(Point&& point)
 {
-  if (mBuffering) {
-    addLineProtocolToBuffer(point.toLineProtocol());
-
-    if (mBuffer.size() >= mBufferSize) {
+  if (mBuffering)
+  {
+    std::scoped_lock lock(mBufferMutex);
+    mBuffer.emplace_back(point.toLineProtocol());
+    if (mBuffer.size() >= mBufferSize)
+    {
       flushBuffer();
     }
-  } else {
+  }
+  else
+  {
     transmit(point.toLineProtocol());
   }
 }
@@ -202,18 +222,24 @@ std::vector<Point> InfluxDB::query(const std::string&  query)
   }
   return points;
 }
-void InfluxDB::onTransmissionFailed(std::function<void()> callback)
+void InfluxDB::onConnectionError(std::function<void ()> callback)
 {
-    mOnTransmissionFailed=std::move(callback);
-    if (mLastNotificationWasTransmissionFail)
+    mOnConnectionError=std::move(callback);
+    if (mLastConnectionNotification == ConnectionError)
     {
-        mOnTransmissionFailed();
+        mOnConnectionError();
     }
 }
+
+void InfluxDB::onBadRequest(std::function<void ()> callback)
+{
+    mOnBadRequest=std::move(callback);
+}
+
 void InfluxDB::onTransmissionSucceeded(std::function<void()> callback)
 {
     mOnTransmissionSucceeded=std::move(callback);
-    if (mLastNotificationWasTransmissionSuccess)
+    if (mLastConnectionNotification == ConnectionSuccess)
     {
         mOnTransmissionSucceeded();
     }
