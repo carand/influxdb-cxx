@@ -97,6 +97,12 @@ BOOST_AUTO_TEST_CASE(Badrequests_callback_is_called_everytime_a_request_is_ill_f
     BOOST_CHECK_EQUAL(2, badRequests);
     BOOST_CHECK_EQUAL(0, connectionErrors);
     BOOST_CHECK_EQUAL(1, succedeedTransmissions);
+
+    influxdb->write(Point{ "test" }.addField("value", 3).addTag("host", "localhost"));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+    BOOST_CHECK_EQUAL(2, badRequests);
+    BOOST_CHECK_EQUAL(0, connectionErrors);
+    BOOST_CHECK_EQUAL(1, succedeedTransmissions);
 }
 
 BOOST_AUTO_TEST_CASE(Dynamic_deactivate_flushing_timeout)
@@ -168,7 +174,7 @@ BOOST_AUTO_TEST_CASE(When_connection_error_happened_before_callback_registering_
     influxdb->onTransmissionSucceeded([&]{succedeedTransmissions++;});
     influxdb->onConnectionError([&]{connectionErrors++;});
 
-    BOOST_CHECK_EQUAL(1, connectionErrors);
     BOOST_CHECK_EQUAL(0, succedeedTransmissions);
+    BOOST_CHECK_EQUAL(1, connectionErrors);
 }
 }}
