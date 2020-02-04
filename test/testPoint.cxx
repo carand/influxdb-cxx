@@ -15,7 +15,7 @@ std::vector<std::string> getVector(const Point& point)
                       std::istream_iterator<std::string>{}};
 }
 
-BOOST_AUTO_TEST_CASE(test1)
+BOOST_AUTO_TEST_CASE(add_integer_fields_to_line_protocol_properly)
 {
   auto point = Point{"test"}
     .addField("value", 10LL);
@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE(test1)
   BOOST_CHECK_EQUAL(result[1], "value=10i");
 }
 
-BOOST_AUTO_TEST_CASE(test2)
+BOOST_AUTO_TEST_CASE(add_double_fields_to_line_protocol_properly)
 {
   auto point = Point{"test"}
     .addField("value", 10LL)
@@ -38,7 +38,18 @@ BOOST_AUTO_TEST_CASE(test2)
   BOOST_CHECK_EQUAL(result[1], "value=10i,dvalue=10.1");
 }
 
-BOOST_AUTO_TEST_CASE(test3)
+BOOST_AUTO_TEST_CASE(add_string_fields_to_line_protocol_properly)
+{
+    auto point = Point{"test"}
+        .addField("string_field", "a_string_value");
+
+    auto result = getVector(point);
+
+    BOOST_CHECK_EQUAL(result[0], "test");
+    BOOST_CHECK_EQUAL(result[1], "string_field=\"a_string_value\"");
+}
+
+BOOST_AUTO_TEST_CASE(adds_tags_to_line_protocol_properly)
 {
   auto point = Point{"test"}
     .addField("value", 10LL)
@@ -51,7 +62,7 @@ BOOST_AUTO_TEST_CASE(test3)
   BOOST_CHECK_EQUAL(result[1], "value=10i,dvalue=10.1");
 }
 
-BOOST_AUTO_TEST_CASE(test4)
+BOOST_AUTO_TEST_CASE(generates_properly_lineprotocol_timestamp)
 {
   auto point = Point{"test"}
     .addField("value", 10)
@@ -60,6 +71,32 @@ BOOST_AUTO_TEST_CASE(test4)
 
   auto result = getVector(point);
   BOOST_CHECK_EQUAL(result[2], "1572830914000000");
+}
+
+BOOST_AUTO_TEST_CASE(does_not_add_tags_with_empty_key_or_empty_value)
+{
+    auto point = Point{"test"}
+        .addTag("", "tag_val")
+        .addTag("tag_name", "")
+        .setTimestamp(std::chrono::time_point<std::chrono::system_clock>(std::chrono::milliseconds(0)));
+
+    auto result = getVector(point);
+
+    BOOST_CHECK_EQUAL(result[0], "test");
+    BOOST_CHECK_EQUAL(result[1], "0");
+}
+
+BOOST_AUTO_TEST_CASE(does_not_add_fields_with_empty_key_or_empty_string_value)
+{
+    auto point = Point{"test"}
+        .addField("", "field_value")
+        .addField("field_name", "")
+        .setTimestamp(std::chrono::time_point<std::chrono::system_clock>(std::chrono::milliseconds(0)));
+
+    auto result = getVector(point);
+
+    BOOST_CHECK_EQUAL(result[0], "test");
+    BOOST_CHECK_EQUAL(result[1], "0");
 }
 
 } // namespace test
