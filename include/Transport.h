@@ -13,13 +13,19 @@ namespace influxdb
 class bad_request_error : public std::runtime_error
 {
 public:
-    bad_request_error(const std::string& message): runtime_error(message){};
+  bad_request_error(const std::string& message): runtime_error(message){};
+};
+
+class server_error : public std::runtime_error
+{
+public:
+  server_error(const std::string& message): runtime_error(message){};
 };
 
 class connection_error : public std::runtime_error
 {
 public:
-    connection_error(const std::string& message): runtime_error(message){};
+  connection_error(const std::string& message): runtime_error(message){};
 };
 
 /// \brief Transport interface

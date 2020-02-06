@@ -6,9 +6,7 @@
 #include "InfluxDBException.h"
 #include <iostream>
 
-namespace influxdb
-{
-namespace transports
+namespace influxdb::transports
 {
 
 HTTP::HTTP(const std::string& url)
@@ -106,23 +104,33 @@ HTTP::~HTTP()
   curl_global_cleanup();
 }
 
-void HTTP::send(std::string&& post)
+void HTTP::send(std::string&& lineprotocol)
 {
   CURLcode response;
   long responseCode;
-  curl_easy_setopt(writeHandle, CURLOPT_POSTFIELDS, post.c_str());
-  curl_easy_setopt(writeHandle, CURLOPT_POSTFIELDSIZE, (long) post.length());
+  curl_easy_setopt(writeHandle, CURLOPT_POSTFIELDS, lineprotocol.c_str());
+  curl_easy_setopt(writeHandle, CURLOPT_POSTFIELDSIZE, (long) lineprotocol.length());
   response = curl_easy_perform(writeHandle);
   curl_easy_getinfo(writeHandle, CURLINFO_RESPONSE_CODE, &responseCode);
+
   if (response != CURLE_OK)
   {
     throw connection_error(curl_easy_strerror(response));
   }
-  if (responseCode < 200 || responseCode > 206)
+  //
+  // Influx API response codes:
+  // https://docs.influxdata.com/influxdb/v1.7/tools/api/#status-codes-and-responses-2
+  //
+  if ((responseCode >= 400) && (responseCode < 500))
   {
-    throw bad_request_error("Response code : " + std::to_string(responseCode));
+    throw bad_request_error("Bad request: " + std::to_string(responseCode));
   }
+  else if (responseCode > 500)
+  {
+    throw server_error("Influx server error:" + std::to_string(responseCode));
+  }
+
 }
 
-} // namespace transports
-} // namespace influxdb
+} // namespace influxdb::transports
+

@@ -24,6 +24,14 @@ namespace influxdb
 class InfluxDB
 {
   public:
+    enum TransmissionResult {
+      TransmissionSucceeded,
+      PointsBatched,
+      ServerError,
+      BadRequest,
+      ConnectionFailed
+    };
+
     /// Disable copy constructor
     InfluxDB & operator=(const InfluxDB&) = delete;
 
@@ -36,14 +44,18 @@ class InfluxDB
     /// Flushes buffer
     ~InfluxDB();
 
-    /// Writes a metric
+    /// Writes a point
     /// \param metric
-    void write(Point&& metric);
+    TransmissionResult write(Point&& point);
+
+    /// Writes a point
+    /// \param metric
+    TransmissionResult write(std::vector<Point>&& points);
 
     /// Queries InfluxDB database
     std::vector<Point> query(const std::string& query);
 
-    /// Flushes metric buffer (this can also happens when buffer is full)
+    /// Flushes points batched
     void flushBuffer();
 
     /// Enables metric buffering. If timeout is defined, buffer autoflushing is activated. It leads to having injection
@@ -73,38 +85,53 @@ class InfluxDB
 
 
   private:
-    enum LastConnectionNotification{
-        NothingNotified,
+    enum ConnectionStatus {
+        Unknown,
         ConnectionSuccess,
         ConnectionError
     };
 
-    void addLineProtocolToBuffer(std::string&& lineProtocol);
-    static void doPeriodicFlushBuffer(InfluxDB* influxDb);
+
+
+    /// Flushes line protocol batch
+    void flushBatch();
+
+    /// Transmits lineProtocol over transport
+    TransmissionResult transmit(std::string&& lineProtocol);
+
     void startBufferFlushingThread();
+
     void joinFlushingThread();
 
+    static void doPeriodicFlushBuffer(InfluxDB* influxDb);
+
+    std::string joinLineProtocolBatch() const;
+
+    void sendNotifications(TransmissionResult transmissionResult);
+
+    void notifyConnectionSuccess();
+
+    void notifyConnectionError();
+
+    void addPointToBatch(const Point &point);
   private:
-    /// Buffer for points
-    std::deque<std::string> mBuffer;
+    /// Mutex for accessing batch
+    std::mutex mBatchMutex;
+
+    /// line protocol batch to be writen
+    std::deque<std::string> mLineProtocolBatch;
 
     /// Flag stating whether point buffering is enabled
-    bool mBuffering;
+    bool mIsBatchingActivated;
 
     /// Buffer size
-    std::size_t mBufferSize;
+    std::size_t mBatchSize;
 
     /// Underlying transport UDP/HTTP/Unix socket
     std::unique_ptr<Transport> mTransport;
 
-    /// Transmits string over transport
-    bool transmit(std::string&& point);
-
     /// List of global tags
     std::string mGlobalTags;
-
-    /// Mutex for accessing buffer
-    std::mutex mBufferMutex;
 
     /// Flushing timeout
     std::chrono::milliseconds mFlushingTimeout;
@@ -122,11 +149,12 @@ class InfluxDB
     std::function<void()> mOnConnectionError;
 
     /// Callback called when transmission success
-    std::function<void()> mOnTransmissionSucceeded;
+    std::function<void()> mOnConnectionSucceeded;
 
-    /// flag indicating that last connection notification
-    LastConnectionNotification mLastConnectionNotification;
+    /// last connection status
+    ConnectionStatus mLastConnectionStatus;
 
+    /// time in which last buffer flush was performed
     std::chrono::time_point<std::chrono::system_clock> mLastFlushTime;
 };
 
