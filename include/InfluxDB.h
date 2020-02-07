@@ -21,17 +21,19 @@
 namespace influxdb
 {
 
+enum WriteResult
+{
+    WriteSucceeded,
+    PointsBatched,
+    ServerError,
+    NonExistentDatabase,
+    BadRequest,
+    ConnectionFailed
+};
+
 class InfluxDB
 {
   public:
-    enum TransmissionResult {
-      TransmissionSucceeded,
-      PointsBatched,
-      ServerError,
-      BadRequest,
-      ConnectionFailed
-    };
-
     /// Disable copy constructor
     InfluxDB & operator=(const InfluxDB&) = delete;
 
@@ -39,18 +41,18 @@ class InfluxDB
     InfluxDB(const InfluxDB&) = delete;
 
     /// Constructor required valid transport
-    InfluxDB(std::unique_ptr<Transport> transport);
+    explicit InfluxDB(std::unique_ptr<Transport> transport);
 
     /// Flushes buffer
     ~InfluxDB();
 
     /// Writes a point
     /// \param metric
-    TransmissionResult write(Point&& point);
+    WriteResult write(Point&& point);
 
     /// Writes a point
     /// \param metric
-    TransmissionResult write(std::vector<Point>&& points);
+    WriteResult write(std::vector<Point>&& points);
 
     /// Queries InfluxDB database
     std::vector<Point> query(const std::string& query);
@@ -97,7 +99,7 @@ class InfluxDB
     void flushBatch();
 
     /// Transmits lineProtocol over transport
-    TransmissionResult transmit(std::string&& lineProtocol);
+    WriteResult transmit(std::string&& lineProtocol);
 
     void startBufferFlushingThread();
 
@@ -107,7 +109,7 @@ class InfluxDB
 
     std::string joinLineProtocolBatch() const;
 
-    void sendNotifications(TransmissionResult transmissionResult);
+    void sendNotifications(WriteResult transmissionResult);
 
     void notifyConnectionSuccess();
 

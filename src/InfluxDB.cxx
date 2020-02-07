@@ -117,20 +117,20 @@ void InfluxDB::flushBatch()
   auto transmissionResult = transmit(joinLineProtocolBatch());
   sendNotifications(transmissionResult);
 
-  if ((transmissionResult == TransmissionSucceeded) ||
+  if ((transmissionResult == WriteSucceeded) ||
       (transmissionResult == BadRequest))
   {
     mLineProtocolBatch.clear();
   }
 }
 
-void InfluxDB::sendNotifications(TransmissionResult transmissionResult) {
+void InfluxDB::sendNotifications(WriteResult transmissionResult) {
   if (transmissionResult == BadRequest)
   {
     mOnBadRequest();
   }
 
-  if (transmissionResult == TransmissionSucceeded ||
+  if (transmissionResult == WriteSucceeded ||
       transmissionResult == ServerError ||
       transmissionResult == BadRequest)
   {
@@ -176,9 +176,9 @@ void InfluxDB::addGlobalTag(std::string_view key, std::string_view value)
   mGlobalTags += value;
 }
 
-InfluxDB::TransmissionResult InfluxDB::transmit(std::string&& lineprotocol)
+WriteResult InfluxDB::transmit(std::string&& lineprotocol)
 {
-  TransmissionResult result = TransmissionSucceeded;
+  WriteResult result = WriteSucceeded;
   try
   {
     mTransport->send(std::move(lineprotocol));
@@ -186,6 +186,10 @@ InfluxDB::TransmissionResult InfluxDB::transmit(std::string&& lineprotocol)
   catch (const server_error& error)
   {
     result = ServerError;
+  }
+  catch (const nonexistent_database_error& error)
+  {
+    result = NonExistentDatabase;
   }
   catch (const bad_request_error& error)
   {
@@ -198,9 +202,9 @@ InfluxDB::TransmissionResult InfluxDB::transmit(std::string&& lineprotocol)
   return result;
 }
 
-InfluxDB::TransmissionResult InfluxDB::write(Point&& point)
+WriteResult InfluxDB::write(Point&& point)
 {
-  TransmissionResult result;
+  WriteResult result;
   if (mIsBatchingActivated)
   {
     addPointToBatch(point);
@@ -213,9 +217,9 @@ InfluxDB::TransmissionResult InfluxDB::write(Point&& point)
   return result;
 }
 
-InfluxDB::TransmissionResult InfluxDB::write(std::vector<Point> &&points)
+WriteResult InfluxDB::write(std::vector<Point> &&points)
 {
-  TransmissionResult result;
+  WriteResult result;
   if (mIsBatchingActivated)
   {
     for(const auto& point : points) {

@@ -10,6 +10,14 @@
 
 namespace influxdb
 {
+
+class nonexistent_database_error : public std::runtime_error
+{
+public:
+    nonexistent_database_error(const std::string& message): runtime_error(message){};
+};
+
+
 class bad_request_error : public std::runtime_error
 {
 public:

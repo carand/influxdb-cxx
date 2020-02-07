@@ -121,6 +121,10 @@ void HTTP::send(std::string&& lineprotocol)
   // Influx API response codes:
   // https://docs.influxdata.com/influxdb/v1.7/tools/api/#status-codes-and-responses-2
   //
+  if (responseCode == 404)
+  {
+    throw nonexistent_database_error("Nonexistent database: " + std::to_string(responseCode));
+  }
   if ((responseCode >= 400) && (responseCode < 500))
   {
     throw bad_request_error("Bad request: " + std::to_string(responseCode));
